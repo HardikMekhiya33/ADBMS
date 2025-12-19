@@ -1,0 +1,105 @@
+/*=========================================================
+  Step 1: Create Object Type
+=========================================================*/
+CREATE OR REPLACE TYPE publisher_obj AS OBJECT (
+    pub_id   NUMBER,
+    pub_name VARCHAR2(100)
+);
+/
+
+/*=========================================================
+  Step 2: Create VARRAY Type
+=========================================================*/
+CREATE OR REPLACE TYPE publisher_varray AS VARRAY(10) OF publisher_obj;
+/
+
+/*=========================================================
+  Step 3: Create Table with VARRAY Column
+=========================================================*/
+CREATE TABLE book_publishers_varray (
+    book_code NUMBER PRIMARY KEY,
+    publishers publisher_varray
+);
+/
+
+/*=========================================================
+  Step 4: Insert Sample Data
+=========================================================*/
+INSERT INTO book_publishers_varray
+VALUES (
+    1,
+    publisher_varray(
+        publisher_obj(1, 'Penguin'),
+        publisher_obj(2, 'HarperCollins'),
+        publisher_obj(3, 'Oxford')
+    )
+);
+
+COMMIT;
+/
+
+/*=========================================================
+  Step 5: Procedure to Insert, Update, Delete from VARRAY
+=========================================================*/
+CREATE OR REPLACE PROCEDURE manage_publishers_varray (
+    p_book_code IN NUMBER,
+    p_action    IN VARCHAR2,
+    p_position  IN NUMBER DEFAULT NULL,
+    p_pub_id    IN NUMBER DEFAULT NULL,
+    p_pub_name  IN VARCHAR2 DEFAULT NULL
+) IS
+    v_publishers publisher_varray;
+BEGIN
+    SELECT publishers
+    INTO v_publishers
+    FROM book_publishers_varray
+    WHERE book_code = p_book_code
+    FOR UPDATE;
+
+    IF UPPER(p_action) = 'INSERT' THEN
+        v_publishers.EXTEND;
+        v_publishers(v_publishers.LAST) :=
+            publisher_obj(p_pub_id, p_pub_name);
+
+    ELSIF UPPER(p_action) = 'UPDATE' THEN
+        v_publishers(p_position) :=
+            publisher_obj(p_pub_id, p_pub_name);
+
+    ELSIF UPPER(p_action) = 'DELETE' THEN
+        FOR i IN p_position .. v_publishers.COUNT - 1 LOOP
+            v_publishers(i) := v_publishers(i + 1);
+        END LOOP;
+        v_publishers.TRIM;
+    END IF;
+
+    UPDATE book_publishers_varray
+    SET publishers = v_publishers
+    WHERE book_code = p_book_code;
+
+    COMMIT;
+END;
+/
+ 
+/*=========================================================
+  Step 6: Test the Procedure
+=========================================================*/
+
+-- Insert new publisher
+EXEC manage_publishers_varray(1, 'INSERT', NULL, 4, 'Pearson');
+
+-- Update 2nd publisher
+EXEC manage_publishers_varray(1, 'UPDATE', 2, 22, 'McGraw Hill');
+
+-- Delete 1st publisher
+EXEC manage_publishers_varray(1, 'DELETE', 1);
+/
+
+/*=========================================================
+  Step 7: View Result
+=========================================================*/
+SELECT b.book_code,
+       p.pub_id,
+       p.pub_name
+FROM book_publishers_varray b,
+     TABLE(b.publishers) p;
+/
