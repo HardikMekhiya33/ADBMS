@@ -1,0 +1,94 @@
+-- Create nested table type
+CREATE OR REPLACE TYPE mobiles IS TABLE OF NUMBER;
+
+
+-- Create Teacher table with nested table column
+CREATE TABLE Teacher (
+    t_id    NUMBER PRIMARY KEY,
+    t_name  VARCHAR2(50),
+    mobile  mobiles
+) NESTED TABLE mobile STORE AS Mobile_List;
+
+
+-- Procedure to insert teacher with multiple mobiles
+CREATE OR REPLACE PROCEDURE insert_teacher(
+    p_id     IN NUMBER,
+    p_name   IN VARCHAR2,
+    p_phone  IN mobiles
+) AS
+BEGIN
+    INSERT INTO Teacher (t_id, t_name, mobile)
+    VALUES (p_id, p_name, p_phone);
+
+    DBMS_OUTPUT.PUT_LINE('Teacher inserted successfully');
+END;
+/
+
+-- Example execution
+EXEC insert_teacher(3, 'vaja', mobiles(1111111111));
+/
+
+--------------------------------------------------------
+-- Procedure to add a new mobile number to a teacher
+CREATE OR REPLACE PROCEDURE add_teacher_mobile(
+    p_id      IN NUMBER,
+    t_mobile  IN NUMBER
+) AS
+BEGIN
+    INSERT INTO TABLE(
+        SELECT mobile FROM Teacher WHERE t_id = p_id
+    )
+    VALUES (t_mobile);
+
+    DBMS_OUTPUT.PUT_LINE('Mobile added: ' || t_mobile);
+END;
+/
+
+-- Example execution
+EXEC add_teacher_mobile(2, 3333333333);
+/
+
+--------------------------------------------------------
+CREATE OR REPLACE PROCEDURE update_teacher_mobile(
+    p_id        IN NUMBER,
+    old_mobile  IN NUMBER,
+    new_mobile  IN NUMBER
+) AS
+BEGIN
+    UPDATE TABLE(
+        SELECT t.mobile
+        FROM Teacher t
+        WHERE t.t_id = p_id
+    ) nt
+    SET nt.column_value = new_mobile
+    WHERE nt.column_value = old_mobile;
+
+    DBMS_OUTPUT.PUT_LINE(
+        'Updated mobile: ' || old_mobile || ' -> ' || new_mobile
+    );
+END;
+/
+
+-- Example execution
+EXEC update_teacher_mobile(1, 1111111111, 9999999999);
+/
+
+--------------------------------------------------------
+-- Procedure to delete a mobile number from teacher
+CREATE OR REPLACE PROCEDURE delete_teacher_mobile(
+    p_id      IN NUMBER,
+    t_mobile  IN NUMBER
+) AS
+BEGIN
+    DELETE FROM TABLE(
+        SELECT mobile FROM Teacher WHERE t_id = p_id
+    )
+    WHERE column_value = t_mobile;
+
+    DBMS_OUTPUT.PUT_LINE('Deleted mobile: ' || t_mobile);
+END;
+/
+
+-- Example execution
+EXEC delete_teacher_mobile(1, 2222222222);
+/
